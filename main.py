@@ -10,6 +10,11 @@ def create_engine(c):
     AudioEngine(c=c)
 
 if __name__ == "__main__":
+    if(not os.path.exists("tts_temp")):
+        os.mkdir("tts_temp")
+    if(not os.path.exists("sound_files")):
+        os.mkdir("sound_files")
+
     dotenv.load_dotenv("vars.env")
     parent_conn, child_conn = multiprocessing.Pipe()
     process = multiprocessing.Process(target=create_engine, args=(parent_conn,))
