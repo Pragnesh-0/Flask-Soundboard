@@ -3,7 +3,7 @@ import time,os
 from flask import Flask, request ,send_from_directory
 from application_classes.Settings import SettingsClass
 import pyttsx3
-import mimetypes
+from application_classes.OutputTest import OutputTest
 
 #change to whatever transformer or library, must be saved in tts_temp as .wav
 def create_tts(text, p):
@@ -15,18 +15,25 @@ def create_tts(text, p):
     pytts.runAndWait()
     p.send({"type":"tts"})
 
+
+def create_test_stream(stop_event):
+    OutputTest(stop_event=stop_event)
+
 class FlaskApp:
 
     def __init__(self,p):
         self.app = Flask(__name__, static_folder="../dist", static_url_path="/")
-        mimetypes.add_type("image/svg+xml", ".svg")
         self.set_endpoints()
         self.p = p
         self.audio_db = time.perf_counter_ns()
         self.tts_db = time.perf_counter_ns()
-        self.tts_processs = None
+        self.tts_process = None
+        self.test_db = time.perf_counter_ns()
+        self.test_process = None
+        self.stop_test_event = multiprocessing.Event()
         self.settings_data = SettingsClass()
         
+
 
     def set_endpoints(self):
         @self.app.route("/")
@@ -98,8 +105,8 @@ class FlaskApp:
         
         @self.app.post("/api/use_tts")
         def use_tts():
-            if(self.tts_processs is not None):
-                if(self.tts_processs.is_alive()):
+            if(self.tts_process is not None):
+                if(self.tts_process.is_alive()):
                     return({"success":False})
             
             if(self.tts_db > time.perf_counter_ns()):
@@ -107,15 +114,15 @@ class FlaskApp:
             else:
                 self.tts_db = time.perf_counter_ns() + 50000000
             data = request.get_json()
-            self.tts_processs = multiprocessing.Process(target=create_tts, args=(data["text"], self.p,))
-            self.tts_processs.start()
+            self.tts_process = multiprocessing.Process(target=create_tts, args=(data["text"], self.p,))
+            self.tts_process.start()
 
             return({"success":True})
 
         @self.app.post("/api/stop_tts")
         def stop_tts():
-            if(self.tts_processs is not None):
-                if(self.tts_processs.is_alive()):
+            if(self.tts_process is not None):
+                if(self.tts_process.is_alive()):
                     return({"success":False})
             
             self.p.send({"type":"stop_tts"})
@@ -182,7 +189,24 @@ class FlaskApp:
         @self.app.post("/api/poll")
         def poll():
             return({})
+        
+        @self.app.post("/api/test_audio")
+        def test_audio():
+            if(self.test_process is not None):
+                if(self.test_process.is_alive()):
+                    self.stop_test_event.set()
+                    return({"success":True,"active":False})
+            
+            if(self.test_db > time.perf_counter_ns()):
+                return {"success":False}
+            else:
+                self.test_db = time.perf_counter_ns() + 50000000
+            
+            self.stop_test_event.clear()
+            self.test_process = multiprocessing.Process(target=create_test_stream, args=(self.stop_test_event,))
+            self.test_process.start()
 
+            return({"success":True,"active":True})
 
 
     
