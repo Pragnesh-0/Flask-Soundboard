@@ -5,10 +5,11 @@ from application_classes.Settings import SettingsClass
 import pyttsx3
 import mimetypes
 
+#change to whatever transformer or library, must be saved in tts_temp as .wav
 def create_tts(text, p):
     pytts = pyttsx3.init()
     voices = pytts.getProperty("voices")
-    pytts.setProperty("voice", voices[int(os.environ["VOICE"])].id)
+    pytts.setProperty("voice", voices[int(os.environ.get("VOICE", 0))].id)
     pytts.setProperty("rate", 75)
     pytts.save_to_file(text=text, filename="tts_temp/audio.wav")
     pytts.runAndWait()
@@ -187,5 +188,5 @@ class FlaskApp:
     
 
         
-    def listen(self,port):
+    def listen(self,port=5000):
         self.app.run(port=port)

@@ -20,7 +20,7 @@ if __name__ == "__main__":
     process = multiprocessing.Process(target=create_engine, args=(parent_conn,))
     process.start()
     app = FlaskApp(p=child_conn)
-    app.listen(os.environ["PORT"])
+    app.listen(os.environ.get("PORT", 5000))
     if(app.tts_processs is not None):
         if(os.path.exists("tts_temp/audio.wav")):
             os.remove("tts_temp/audio.wav")
