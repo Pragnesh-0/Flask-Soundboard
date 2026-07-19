@@ -138,6 +138,8 @@ class FlaskApp:
                     self.settings_data.sine_config["active"] = data["value"]
                 if(data["mod_type"] == "triangular"):
                     self.settings_data.triangle_config["active"] = data["value"]
+                if(data["mod_type"] == "rebound"):
+                    self.settings_data.sine_config["active"] = data["value"]
             else:
                 return({"success":False})
             
@@ -153,6 +155,19 @@ class FlaskApp:
                     self.settings_data.sine_config["frequency"] = data["value"]
                 if(data["mod_type"] == "triangular"):
                     self.settings_data.triangle_config["frequency"] = data["value"]
+            else:
+                return({"success":False})
+            
+            return({"success":True})
+        
+        @self.app.post("/api/change_mod_val")
+        def change_mod_val():
+            data = request.get_json()
+            if "mod_type" in data:
+                self.p.send({"type":"mod_val_change", "mod_type":data["mod_type"], "value":data["value"]})
+                print(data["value"])
+                if(data["mod_type"] == "rebound"):
+                    self.settings_data.rebound_config["decay"] = data["value"]
             else:
                 return({"success":False})
             
@@ -183,6 +198,8 @@ class FlaskApp:
                 return ({"success":True, "data": self.settings_data.sb_config})
             if(data["type"] == "modulation"):
                 return ({"success":True, "data": {"sine": self.settings_data.sine_config, "triangular": self.settings_data.triangle_config}})
+            if(data["type"] == "active_modulation"):
+                return ({"success":True, "data": {"rebound": self.settings_data.rebound_config}})
             
             return({"success":False})
         

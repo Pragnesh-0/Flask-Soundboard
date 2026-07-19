@@ -24,6 +24,8 @@ class AudioEngine:
         self.current_audio = None
         self.audio_pointer = 0
 
+        self.rebound_chunk = None
+
         self.current_tts_track = None
         self.current_tts_pointer = 0
         with sd.Stream(samplerate=self.default_sr, channels=1, blocksize=8192, callback=self.callback):
@@ -77,12 +79,19 @@ class AudioEngine:
                             if(data["mod_type"] == "triangular"):
                                 self.settings_data.triangle_config["active"] = data["value"]
 
+                            if(data["mod_type"] == "rebound"):
+                                self.settings_data.rebound_config["active"] = data["value"]
+
                         if(data["type"] == "freq_change"):
                             if(data["mod_type"] == "sine"):
                                 self.settings_data.sine_config["frequency"] = data["value"]
 
                             if(data["mod_type"] == "triangular"):
                                 self.settings_data.triangle_config["frequency"] = data["value"]
+
+                        if(data["type"] == "mod_val_change"):
+                            if(data["mod_type"] == "rebound"):
+                                self.settings_data.rebound_config["decay"] = data["value"]
                         
                         if(data["type"] == "tts_settings"):
                             self.settings_data.tts_config[data["setting"]] = data["value"]
@@ -109,9 +118,16 @@ class AudioEngine:
 
         if(self.settings_data.triangle_config["active"]):
             indatanew = self.triangle_modulation(input_chunk=indatanew, frames=frames)
+
+        if(self.settings_data.rebound_config["active"]):
+            indatanew = self.rebound_modulation(input_chunk=indatanew)
         
         indatanew[:64] *= np.linspace(0.0,1.0,64)[:,np.newaxis]
         indatanew[-64:] *= np.linspace(1.0,0.0,64)[:,np.newaxis]
+
+        
+            
+
 
         indatanew = np.clip(indatanew, -1, 1)
         outdata[:] = indatanew
@@ -171,8 +187,6 @@ class AudioEngine:
         
         input_chunk = self.pitch_shift_array(input_chunk, 12 * math.sin(self.sine_timer * self.settings_data.sine_config["frequency"]))
         return input_chunk
-        
-
 
     def triangle_modulation(self, input_chunk, frames):
         t_add = frames / self.default_sr
@@ -183,4 +197,15 @@ class AudioEngine:
         
         input_chunk = self.pitch_shift_array(input_chunk, (12*(2/math.pi)) * math.asin(math.cos(self.triangle_timer * self.settings_data.triangle_config["frequency"])))
         return input_chunk
+    
+    def rebound_modulation(self, input_chunk):
+        decay = self.settings_data.rebound_config["decay"] if self.settings_data.rebound_config["decay"] < 0.9 and self.settings_data.rebound_config["decay"] > 0 else .5
+        if(self.rebound_chunk is None):
+            self.rebound_chunk = input_chunk
+        else:
+            input_chunk += self.rebound_chunk * decay
+            self.rebound_chunk = input_chunk
+        
+        return input_chunk
+
         

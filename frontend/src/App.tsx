@@ -4,6 +4,7 @@ import { TTSSection } from "./components/TTSSection"
 import { SoundModulation } from "./components/SoundModulation"
 import { PollServer } from "./components/PollServer"
 import { TestAudio } from "./components/TestAudio"
+import { ActiveSoundModulation } from "./components/ActiveSoundModulation"
 
 export function App() {
   
@@ -13,6 +14,7 @@ export function App() {
       <TestAudio />
       <SoundSettings />
       <SoundModulation />
+      <ActiveSoundModulation />
       <SoundBoard />
       <TTSSection />
     </>

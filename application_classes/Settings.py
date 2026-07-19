@@ -21,3 +21,7 @@ class SettingsClass:
             "volume": 1,
             "semitone": -12
         }
+        self.rebound_config = {
+            "active": False,
+            "decay": 0.1
+        }
