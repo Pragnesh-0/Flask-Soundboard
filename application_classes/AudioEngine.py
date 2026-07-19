@@ -2,6 +2,7 @@ import sounddevice as sd
 import soundfile, math, time, os
 import numpy as np
 import python_stretch as ps
+import copy
 from application_classes.Settings import SettingsClass
 
 

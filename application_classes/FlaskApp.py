@@ -4,6 +4,7 @@ from flask import Flask, request ,send_from_directory
 from application_classes.Settings import SettingsClass
 import pyttsx3
 from application_classes.OutputTest import OutputTest
+from application_classes.AudioEngine import AudioEngine
 
 #change to whatever transformer or library, must be saved in tts_temp as .wav
 def create_tts(text, p):
@@ -16,22 +17,31 @@ def create_tts(text, p):
     p.send({"type":"tts"})
 
 
+def create_engine(c):
+    AudioEngine(c=c)
+
 def create_test_stream(stop_event):
     OutputTest(stop_event=stop_event)
 
 class FlaskApp:
 
-    def __init__(self,p):
+    def __init__(self):
         self.app = Flask(__name__, static_folder="../dist", static_url_path="/")
         self.set_endpoints()
-        self.p = p
         self.audio_db = time.perf_counter_ns()
         self.tts_db = time.perf_counter_ns()
+
         self.tts_process = None
         self.test_db = time.perf_counter_ns()
+
         self.test_process = None
         self.stop_test_event = multiprocessing.Event()
         self.settings_data = SettingsClass()
+
+        self.parent_conn, self.p = multiprocessing.Pipe()
+        self.engine_process =  multiprocessing.Process(target=create_engine, args=(self.parent_conn,), daemon=True)
+        self.engine_process.start()
+        
         
 
 
@@ -48,7 +58,7 @@ class FlaskApp:
 
         @self.app.post("/api/set_settings")
         def set_data():
-
+            if(not self.engine_process.is_alive()): return({"success":False})
             data = request.get_json()
             
             if "setting" in data:
@@ -61,7 +71,7 @@ class FlaskApp:
         
         @self.app.post("/api/set_board_settings")
         def set_board_data():
-
+            if(not self.engine_process.is_alive()): return({"success":False})
             data = request.get_json()
 
             if "setting" in data:
@@ -74,6 +84,7 @@ class FlaskApp:
         
         @self.app.post("/api/play_audio")
         def play_audio():
+            if(not self.engine_process.is_alive()): return({"success":False})
             data = request.get_json()
 
             if(self.audio_db > time.perf_counter_ns()):
@@ -83,6 +94,7 @@ class FlaskApp:
             
 
             if "value" in data:
+                
                 
                 self.p.send({"type":"play_audio", "audio_name":data["value"]})
                 
@@ -100,6 +112,7 @@ class FlaskApp:
 
         @self.app.post("/api/stop_audio")
         def stop_audio():
+            if(not self.engine_process.is_alive()): return({"success":False})
             self.p.send({"type":"stop_audio"})
             return({"success":True})
         
@@ -113,7 +126,11 @@ class FlaskApp:
                 return {"success":False}
             else:
                 self.tts_db = time.perf_counter_ns() + 50000000
+
+            if(not self.engine_process.is_alive()): return({"success":False})
             data = request.get_json()
+            if(len(data["text"]) == 0):
+                return({"success":False})
             self.tts_process = multiprocessing.Process(target=create_tts, args=(data["text"], self.p,))
             self.tts_process.start()
 
@@ -124,13 +141,16 @@ class FlaskApp:
             if(self.tts_process is not None):
                 if(self.tts_process.is_alive()):
                     return({"success":False})
-            
+
+            if(not self.engine_process.is_alive()): return({"success":False})
+
             self.p.send({"type":"stop_tts"})
 
             return({"success":True})
 
         @self.app.post("/api/toggle_mod")
         def toggle_mod():
+            if(not self.engine_process.is_alive()): return({"success":False})
             data = request.get_json()
             if "mod_type" in data:
                 self.p.send({"type":"toggle_mod", "mod_type":data["mod_type"], "value":data["value"]})
@@ -148,6 +168,7 @@ class FlaskApp:
 
         @self.app.post("/api/change_freq")
         def change_freq():
+            if(not self.engine_process.is_alive()): return({"success":False})
             data = request.get_json()
             if "mod_type" in data:
                 self.p.send({"type":"freq_change", "mod_type":data["mod_type"], "value":data["value"]})
@@ -162,6 +183,7 @@ class FlaskApp:
         
         @self.app.post("/api/change_mod_val")
         def change_mod_val():
+            if(not self.engine_process.is_alive()): return({"success":False})
             data = request.get_json()
             if "mod_type" in data:
                 self.p.send({"type":"mod_val_change", "mod_type":data["mod_type"], "value":data["value"]})
@@ -174,6 +196,9 @@ class FlaskApp:
 
         @self.app.post("/api/tts_settings")
         def tts_semitone():
+
+            if(not self.engine_process.is_alive()): return({"success":False})
+
             data = request.get_json()
             if "value" in data:
                 self.p.send({"type":"tts_settings", "setting":data["setting"], "value": data["value"]})
@@ -204,7 +229,8 @@ class FlaskApp:
         
         @self.app.post("/api/poll")
         def poll():
-            return({})
+            d = True if self.engine_process.is_alive() else False
+            return({"engine":d})
         
         @self.app.post("/api/test_audio")
         def test_audio():
@@ -219,10 +245,29 @@ class FlaskApp:
                 self.test_db = time.perf_counter_ns() + 50000000
             
             self.stop_test_event.clear()
-            self.test_process = multiprocessing.Process(target=create_test_stream, args=(self.stop_test_event,))
+            self.test_process = multiprocessing.Process(target=create_test_stream, args=(self.stop_test_event,), daemon=True)
             self.test_process.start()
 
             return({"success":True,"active":True})
+
+        @self.app.post("/api/restart_engine")
+        def restart_engine():
+            if(self.engine_process.is_alive()):
+                self.engine_process.terminate()
+
+            self.p.close()
+            self.parent_conn.close()
+            self.parent_conn, self.p = multiprocessing.Pipe()
+            self.engine_process =  multiprocessing.Process(target=create_engine, args=(self.parent_conn,), daemon=True)
+            self.engine_process.start()
+
+            if(self.test_process is not None):
+                if(self.test_process.is_alive()):
+                    self.stop_test_event.set()
+
+            self.settings_data = SettingsClass()
+
+            return({"success":True})
 
 
     
