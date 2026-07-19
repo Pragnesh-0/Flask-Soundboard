@@ -165,7 +165,6 @@ class FlaskApp:
             data = request.get_json()
             if "mod_type" in data:
                 self.p.send({"type":"mod_val_change", "mod_type":data["mod_type"], "value":data["value"]})
-                print(data["value"])
                 if(data["mod_type"] == "rebound"):
                     self.settings_data.rebound_config["decay"] = data["value"]
             else:
