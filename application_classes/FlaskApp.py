@@ -6,7 +6,8 @@ import pyttsx3
 from application_classes.OutputTest import OutputTest
 from application_classes.AudioEngine import AudioEngine
 
-#change to whatever transformer or library, must be saved in tts_temp as .wav
+
+
 def create_tts(text, p):
     pytts = pyttsx3.init()
     voices = pytts.getProperty("voices")
@@ -14,7 +15,7 @@ def create_tts(text, p):
     pytts.setProperty("rate", 75)
     pytts.save_to_file(text=text, filename="tts_temp/audio.wav")
     pytts.runAndWait()
-    p.send({"type":"tts"})
+    p.send({"type":"tts","is_last":True})
 
 
 def create_engine(c):
@@ -140,7 +141,7 @@ class FlaskApp:
         def stop_tts():
             if(self.tts_process is not None):
                 if(self.tts_process.is_alive()):
-                    return({"success":False})
+                    self.tts_process.terminate()
 
             if(not self.engine_process.is_alive()): return({"success":False})
 

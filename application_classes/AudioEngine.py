@@ -29,6 +29,7 @@ class AudioEngine:
 
         self.current_tts_track = None
         self.current_tts_pointer = 0
+        self.last_tts_chunk = False
         with sd.Stream(samplerate=self.default_sr, channels=1, blocksize=8192, callback=self.callback):
 
             try:
@@ -60,18 +61,21 @@ class AudioEngine:
                         if(data["type"] == "tts"):
                             if(not os.path.exists("tts_temp/audio.wav")):
                                 continue
-                            
+
                             y, sr = soundfile.read(file="tts_temp/audio.wav", always_2d=True)
                             if(y.shape[1] > 1):
                                 y = y.mean(axis=1)
                                 y = y[:,np.newaxis]
 
-                            self.current_tts_pointer = 0
-                            self.current_tts_track = y
+                            if(data["is_last"]):
+                                self.last_tts_chunk = True
+                            
+                            self.current_tts_track = np.concatenate((self.current_tts_track if self.current_tts_track is not None else np.empty((0,1)), y))
                         
                         if(data["type"] == "stop_tts"):
-                            self.current_tts_pointer = 0
                             self.current_tts_track = None
+                            self.current_tts_pointer = 0
+                            self.last_tts_chunk = False
 
                         if(data["type"] == "toggle_mod"):
                             if(data["mod_type"] == "sine"):
@@ -105,7 +109,7 @@ class AudioEngine:
     
     def callback(self, indata, outdata , frames, t, status):
         indatanew = self.pitch_shift_array(indata, self.settings_data.config["semitone"]) * self.settings_data.config["volume"]
-        
+
         if(self.current_audio is not None):
             audio_chunk = self.sounboard_array(frames=frames)
             indatanew = ((indatanew * 0.75) + (audio_chunk * 0.25))
@@ -170,8 +174,11 @@ class AudioEngine:
         if(len(tts_audio_chunk) < frames):
             width_to_pad = frames - len(tts_audio_chunk)
             tts_audio_chunk = np.pad(tts_audio_chunk, pad_width=((0, width_to_pad),(0,0)), mode="constant", constant_values=0)
-            self.current_tts_track = None
-            self.current_tts_pointer = 0
+            if(self.last_tts_chunk):
+                self.current_tts_track = None
+                self.current_tts_pointer = 0
+            else:
+                self.current_tts_pointer = self.current_tts_pointer+tts_chunk_frames
         else:
             self.current_tts_pointer += frames
 
