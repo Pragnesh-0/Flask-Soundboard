@@ -15,6 +15,8 @@ example : [
 ]
 
 # Limitations-
+Requires Python 3.13.x
+
 Due to large audio chunk for the buffer when streaming, there is a delay of about 200ms
 
 No file imports you need to manually add to the sound_files folder
